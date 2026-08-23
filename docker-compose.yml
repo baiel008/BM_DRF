@@ -1,0 +1,74 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: beauty
+      POSTGRES_USER: beauty
+      POSTGRES_PASSWORD: beauty
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beauty"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput --clear &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    environment:
+      DJANGO_SECRET_KEY: change-me-in-production
+      DEBUG: "True"
+      DB_NAME: beauty
+      DB_USER: beauty
+      DB_PASSWORD: beauty
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"   # прямой вход (в обход nginx); основной трафик — через nginx :80
+    volumes:
+      - media:/app/media
+      - staticfiles:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    command: celery -A config worker -l info
+    environment:
+      DJANGO_SECRET_KEY: change-me-in-production
+      DEBUG: "True"
+      DB_NAME: beauty
+      DB_USER: beauty
+      DB_PASSWORD: beauty
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      NOTIFICATION_EMAIL_ENABLED: "True"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"       # основной вход для фронтов
+    volumes:
+      - media:/media:ro
+      - staticfiles:/staticfiles:ro
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  media:
+  staticfiles:

@@ -1,0 +1,16 @@
+Django==6.1
+djangorestframework==3.18.0
+djangorestframework-simplejwt==5.5.1
+django-filter==26.1
+drf-yasg==1.21.15
+stripe==15.4.0
+pillow==12.3.0
+python-dotenv==1.2.2
+Unidecode==1.4.0
+channels[daphne]==4.3.1
+channels-redis==4.3.0
+django-modeltranslation==0.20.3
+django-cors-headers==4.9.0
+celery==5.6.3
+psycopg[binary]==3.3.4
+redis==8.1.0
