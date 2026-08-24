@@ -16,8 +16,46 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-1!sy3v)6d0#exw6r8)t
 DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
+# Jazzmin: тема админки (AdminLTE + Bootstrap 5)
+JAZZMIN_SETTINGS = {
+    "site_title": "Beauty Market",
+    "site_header": "Beauty Market API",
+    "site_brand": "Beauty Market",
+    "welcome_sign": "Панель управления маркетплейсом",
+    "copyright": "Beauty Market",
+    "show_ui_builder": False,
+    "show_theme_chooser": True,
+    "default_theme_mode": "auto",  # светлая/тёмная по системе, переключатель в шапке
+    "usermenu_links": [],
+    "usermenu_dropdown": [
+        {"model": "users.user"},
+        {"model": "support.supportticket", "name": "Обращения в поддержку"},
+    ],
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": True,
+    "brand_small_text": False,
+    "navbar_fixed": True,
+    "sidebar_fixed": True,
+    "footer_fixed": False,
+    "sidebar_nav_small_text": False,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-outline-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success",
+    },
+}
+
 INSTALLED_APPS = [
     "daphne",
+    # Тема админки — строго ДО django.contrib.admin
+    "jazzmin",
     # Перевод полей моделей — строго ДО django.contrib.admin
     "modeltranslation",
     "django.contrib.admin",

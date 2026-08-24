@@ -11,6 +11,7 @@ channels[daphne]==4.3.1
 channels-redis==4.3.0
 django-modeltranslation==0.20.3
 django-cors-headers==4.9.0
+django-jazzmin==3.0.5
 celery==5.6.3
 psycopg[binary]==3.3.4
 redis==8.1.0
