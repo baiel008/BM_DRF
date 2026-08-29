@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "finance",
     "chat",
     "support",
+    "analytics",
 ]
 
 ASGI_APPLICATION = "config.asgi.application"
@@ -284,3 +285,8 @@ CELERY_TASK_IGNORE_RESULT = True
 
 # Ссылка на страницу сброса пароля на фронтенде (подставляется в письмо)
 PASSWORD_RESET_URL = os.getenv("PASSWORD_RESET_URL", "https://example.com/reset-password")
+
+# PIN (6 цифр) для коммерческой аналитики — доступ только у владельца
+ANALYTICS_PASSWORD = os.getenv("ANALYTICS_PASSWORD", "")
+# Кол-во секунд бездействия, после которого PIN-доступ к аналитике истекает
+ANALYTICS_TIMEOUT_SECONDS = int(os.getenv("ANALYTICS_TIMEOUT_SECONDS", "15"))

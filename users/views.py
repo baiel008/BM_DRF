@@ -1,4 +1,6 @@
 from django.contrib.auth import authenticate
+from django.core.mail import send_mail
+from django.conf import settings
 from drf_yasg.utils import swagger_auto_schema
 
 from rest_framework import generics, status
@@ -10,6 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import *
 from .serializers import *
+from .tokens import check_token, make_token
 
 
 def _tokens_for(user):
@@ -109,6 +112,61 @@ class PasswordChangeAPIView(APIView):
         user.set_password(new_password)
         user.save()
         return _auth_response(user)
+
+
+# ─── Восстановление пароля (забыли пароль; покупатель и продавец) ─────────────
+
+class PasswordResetAPIView(APIView):
+    """Шаг 1: запрос сброса — шлём письмо со ссылкой. Всегда 200 (без раскрытия email)."""
+
+    permission_classes = []
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    @swagger_auto_schema(request_body=PasswordResetSerializer)
+    def post(self, request):
+        serializer = PasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({"detail": "Если email зарегистрирован, письмо отправлено"}, status=status.HTTP_200_OK)
+
+        token = make_token(user)
+        url = f"{settings.PASSWORD_RESET_URL}?email={email}&token={token}"
+        send_mail(
+            subject="Сброс пароля — Beauty Market",
+            message=(
+                "Здравствуйте!\n\n"
+                "Вы запросили сброс пароля. Перейдите по ссылке, чтобы задать новый пароль "
+                f"(действительна 1 час):\n{url}\n\n"
+                "Если вы не запрашивали сброс — проигнорируйте это письмо."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=True,
+        )
+        return Response({"detail": "Если email зарегистрирован, письмо отправлено"}, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmAPIView(APIView):
+    """Шаг 2: по ссылке из письма — установить новый пароль."""
+
+    permission_classes = []
+
+    @swagger_auto_schema(request_body=PasswordResetConfirmSerializer)
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        user = check_token(data["email"], data["token"])
+        if not user:
+            return Response({"detail": "Ссылка недействительна или истекла"}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(data["new_password"])
+        user.save()
+        return Response({"detail": "Пароль изменён"}, status=status.HTTP_200_OK)
 
 
 # ─── Адреса ────────────────────────────────────────────────────────────────────
