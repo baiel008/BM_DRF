@@ -1,4 +1,4 @@
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics, status
@@ -239,20 +239,37 @@ class SellerSalesAPIView(APIView):
         )
 
 
-class SellerStockAPIView(APIView):
+class SellerStockAPIView(generics.ListAPIView):
     permission_classes = [IsSeller]
+    serializer_class = SellerProductListSerializer
 
-    def get(self, request):
-        shop = _get_own_shop(request)
-        products = Product.objects.filter(shop=shop).order_by("stock")
-        return Response(SellerProductListSerializer(products, many=True, context={"request": request}).data)
+    def get_queryset(self):
+        shop = _get_own_shop(self.request)
+        qs = Product.objects.filter(shop=shop).order_by("stock")
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(sku__icontains=q))
+        return qs
 
     def patch(self, request):
         shop = _get_own_shop(request)
-        product = get_object_or_404(Product, pk=request.data.get("product_id"), shop=shop)
-        stock = request.data.get("stock")
-        if stock is None or int(stock) < 0:
-            return Response({"error": "Некорректный остаток"}, status=status.HTTP_400_BAD_REQUEST)
-        product.stock = int(stock)
-        product.save(update_fields=["stock"])
-        return Response({"id": product.pk, "stock": product.stock})
+        items = request.data.get("items")
+        if not isinstance(items, list) or not items:
+            product = get_object_or_404(Product, pk=request.data.get("product_id"), shop=shop)
+            stock = request.data.get("stock")
+            if stock is None or int(stock) < 0:
+                return Response({"error": "Некорректный остаток"}, status=status.HTTP_400_BAD_REQUEST)
+            product.stock = int(stock)
+            product.save(update_fields=["stock"])
+            return Response({"id": product.pk, "stock": product.stock})
+        updated = []
+        for item in items:
+            pid = item.get("id")
+            stock = item.get("stock")
+            if pid is None or stock is None or int(stock) < 0:
+                return Response({"error": "Некорректные данные"}, status=status.HTTP_400_BAD_REQUEST)
+            product = get_object_or_404(Product, pk=pid, shop=shop)
+            product.stock = int(stock)
+            product.save(update_fields=["stock"])
+            updated.append({"id": product.pk, "stock": product.stock})
+        return Response(updated)

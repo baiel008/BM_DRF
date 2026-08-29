@@ -148,7 +148,11 @@ class PasswordResetAPIView(APIView):
             recipient_list=[user.email],
             fail_silently=True,
         )
-        return Response({"detail": "Если email зарегистрирован, письмо отправлено"}, status=status.HTTP_200_OK)
+        data = {"detail": "Если email зарегистрирован, письмо отправлено"}
+        if settings.DEBUG:
+            # В разработке почта не уходит наружу — даём прямую ссылку для QA
+            data["dev_reset_url"] = url
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class PasswordResetConfirmAPIView(APIView):

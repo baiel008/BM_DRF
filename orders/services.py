@@ -60,6 +60,7 @@ class OrderService:
                     type="seller.order_new",
                     title="Новый заказ",
                     text=f"Поступил заказ {order.number} на {len(rows)} позиций на сумму {order.total} сом",
+                    link=f"/api/seller/orders/{order.pk}/",
                 )
 
         cart.clear()

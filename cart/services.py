@@ -49,6 +49,7 @@ class CartService:
         for item in self.items():
             rows.append(
                 {
+                    "id": item.pk,
                     "product": item.product,
                     "quantity": item.quantity,
                     "unit_price": item.unit_price,

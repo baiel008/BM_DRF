@@ -34,6 +34,7 @@ class CartUpdateSerializer(serializers.Serializer):
 
 
 class CartGroupItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
     product = ProductListSerializer()
     quantity = serializers.IntegerField()
     unit_price = serializers.SerializerMethodField()

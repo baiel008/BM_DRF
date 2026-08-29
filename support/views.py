@@ -75,8 +75,11 @@ class TicketStaffUpdateAPIView(generics.UpdateAPIView):
             )
 
 
-class TicketMessageCreateAPIView(generics.CreateAPIView):
-    """POST сообщения в тикет. Ответ оператора → статус in_progress + уведомление автору."""
+class TicketMessageCreateAPIView(generics.ListCreateAPIView):
+    """GET — сообщения тикета (автор или оператор), POST — отправить сообщение.
+
+    Ответ оператора → статус in_progress + уведомление автору.
+    """
 
     serializer_class = SupportMessageSerializer
     permission_classes = [IsAuthenticated]
@@ -86,6 +89,10 @@ class TicketMessageCreateAPIView(generics.CreateAPIView):
         if not ticket.has_access(self.request.user):
             self.permission_denied(self.request)
         return ticket
+
+    def get_queryset(self):
+        self._get_ticket()
+        return SupportMessage.objects.filter(ticket_id=self.kwargs["pk"]).select_related("author").order_by("created_at")
 
     def create(self, request, *args, **kwargs):
         ticket = self._get_ticket()

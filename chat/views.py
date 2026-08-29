@@ -1,5 +1,8 @@
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from drf_yasg.utils import swagger_auto_schema
 
 from rest_framework import generics, status
@@ -72,14 +75,32 @@ class ThreadMessageCreateAPIView(generics.CreateAPIView):
         if not thread.has_access(self.request.user):
             self.permission_denied(self.request)
         message = serializer.save(thread=thread, sender=self.request.user)
+        sender_name = self.request.user.get_full_name() or self.request.user.email
         for user in thread.others(self.request.user):
-            name = self.request.user.get_full_name() or self.request.user.email
             notify(
                 user,
                 type="chat.message",
                 title="Новое сообщение",
-                text=f"{name}: {message.text[:80]}",
+                text=f"{sender_name}: {message.text[:80]}",
                 link=f"/api/chat/threads/{thread.pk}/messages/",
+            )
+        # REST-путь тоже транслирует сообщение в WS-группу диалога,
+        # чтобы открытый чат получателя обновился живьём (симметрично WS-отправке).
+        layer = get_channel_layer()
+        if layer is not None:
+            async_to_sync(layer.group_send)(
+                f"chat_{thread.pk}",
+                {
+                    "type": "chat.message",
+                    "data": {
+                        "id": message.pk,
+                        "thread": thread.pk,
+                        "sender_id": message.sender_id,
+                        "sender_name": sender_name,
+                        "text": message.text,
+                        "created_at": message.created_at.isoformat(),
+                    },
+                },
             )
 
 
