@@ -136,6 +136,11 @@ CORS_ALLOW_CREDENTIALS = True
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
+# Доверенные POST-origins (домен бэка через DuckDNS, платная фазя) — через env
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()
+]
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
