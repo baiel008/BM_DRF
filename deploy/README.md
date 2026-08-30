@@ -32,7 +32,9 @@ bash deploy/letsencrypt.sh you@example.com
 
 ```bash
 cd /opt/beauty/marketplace_drf
-docker compose run --rm certbot renew --deploy-hook "docker compose exec nginx nginx -s reload"
+docker run --rm -v "$(pwd)/certbot/www:/var/www/certbot" \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  certbot/certbot renew --deploy-hook "docker compose exec nginx nginx -s reload"
 ```
 
 или cron: `0 3 1 * *` … `--deploy-hook …`.

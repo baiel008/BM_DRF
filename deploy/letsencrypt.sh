@@ -7,7 +7,9 @@
 #   bash deploy/letsencrypt.sh your@email
 #
 # Переприменение для продления: достаточно поднять nginx (уже есть сертификат) и
-#   docker compose run --rm certbot renew --deploy-hook "docker compose exec nginx nginx -s reload"
+#   docker run --rm -v "$(pwd)/certbot/www:/var/www/certbot" \
+#     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+#     certbot/certbot renew --deploy-hook "docker compose exec nginx nginx -s reload"
 # (или расписание в cron — см. README.md)
 
 set -euo pipefail
@@ -28,13 +30,14 @@ fi
 
 echo "==> Поднимаем nginx..."
 docker compose up -d nginx
-
-echo "==> Выпускаем сертификат (webroot $DOMAIN)..."
-docker compose run --rm certbot certonly --webroot -w /var/www/certbot \
+docker run --rm --name bm-certbot \
+  -v "$(pwd)/certbot/www:/var/www/certbot" \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  certbot/certbot certonly --webroot -w /var/www/certbot \
   -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL"
 
 echo "==> Перезагружаем nginx..."
 docker compose exec -T nginx nginx -s reload
 
 echo "==> Готово. Проверка: curl https://$DOMAIN/api/products/"
-echo "==> Продление: certbot renew (docker compose run --rm certbot renew), cron каждые 60 дней с deploy-hook на reload nginx."
+echo "==> Продление: certbot renew через docker run (см. deploy/README.md), cron 1-го числа раз в 2 месяца с deploy-hook на reload nginx."
