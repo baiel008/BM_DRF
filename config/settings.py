@@ -234,6 +234,7 @@ REST_FRAMEWORK = {
         "anon": "60/min",
         "user": "120/min",
         "auth": "10/min",
+        "reset_confirm": "5/min",
         "search": "30/min",
     },
 }

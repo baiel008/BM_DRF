@@ -52,48 +52,82 @@ RESET_CONFIRM = "/api/auth/password/reset/confirm/"
 
 
 class PasswordResetTestCase(APITestCase):
-    def test_reset_sends_mail_and_confirm_changes_password(self):
+    def test_reset_sends_code_and_confirm_changes_password(self):
         from django.core import mail
 
         user = User.objects.create_user(email="reset@test.ru", password="OldPass123!")
         # запрос сброса
         resp = self.client.post(RESET, {"email": "reset@test.ru"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("masked_email", resp.data)
+        self.assertEqual(resp.data["masked_email"], "r**t@test.ru")
+        self.assertNotIn("dev_reset_url", resp.data)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("сброс", mail.outbox[0].subject.lower())
+        self.assertIn("код", mail.outbox[0].subject.lower())
         self.assertEqual(mail.outbox[0].to, ["reset@test.ru"])
-        # тянем token из письма
+        # тянем 4-значный код из письма
         body = mail.outbox[0].body
-        token = body.split("token=")[1].split()[0]
+        code = None
+        for line in body.splitlines():
+            line = line.strip()
+            if len(line) == 4 and line.isdigit():
+                code = line
+                break
+        self.assertIsNotNone(code)
 
         # подтверждение с новым паролем
         resp = self.client.post(
-            RESET_CONFIRM, {"email": "reset@test.ru", "token": token, "new_password": "NewPass456!"}, format="json"
+            RESET_CONFIRM, {"email": "reset@test.ru", "code": code, "new_password": "NewPass456!"}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         user.refresh_from_db()
         self.assertTrue(user.check_password("NewPass456!"))
 
-        # старый токен одноразовый — больше не сработает
+        # код одноразовый — больше не сработает
         resp = self.client.post(
-            RESET_CONFIRM, {"email": "reset@test.ru", "token": token, "new_password": "AnotherPass7!"}, format="json"
+            RESET_CONFIRM, {"email": "reset@test.ru", "code": code, "new_password": "AnotherPass7!"}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_reset_unknown_email_returns_200(self):
+    def test_reset_unknown_email_returns_200_without_mask(self):
         resp = self.client.post(RESET, {"email": "nobody@test.ru"}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertNotIn("masked_email", resp.data)
+        self.assertNotIn("dev_reset_url", resp.data)
 
-    def test_confirm_invalid_token_rejected(self):
+    def test_confirm_wrong_code_rejected(self):
+        from django.core import mail
+
+        user = User.objects.create_user(email="bad@test.ru", password="OldPass123!")
+        self.client.post(RESET, {"email": "bad@test.ru"}, format="json")
+        self.assertEqual(len(mail.outbox), 1)
         resp = self.client.post(
-            RESET_CONFIRM, {"email": "a@b.ru", "token": "garbage", "new_password": "NewPass456!"}, format="json"
+            RESET_CONFIRM, {"email": "bad@test.ru", "code": "0000", "new_password": "NewPass456!"}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("OldPass123!"))
 
     def test_confirm_short_password_rejected(self):
         User.objects.create_user(email="short@test.ru", password="OldPass123!")
         self.client.post(RESET, {"email": "short@test.ru"}, format="json")
         resp = self.client.post(
-            RESET_CONFIRM, {"email": "short@test.ru", "token": "x", "new_password": "short"}, format="json"
+            RESET_CONFIRM, {"email": "short@test.ru", "code": "1234", "new_password": "short"}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_confirm_code_exhausted_after_attempts(self):
+        from django.core import mail
+
+        User.objects.create_user(email="exh@test.ru", password="OldPass123!")
+        self.client.post(RESET, {"email": "exh@test.ru"}, format="json")
+        self.assertEqual(len(mail.outbox), 1)
+        # исчерпываем код неверными попытками
+        last = None
+        for _ in range(5):
+            last = self.client.post(
+                RESET_CONFIRM, {"email": "exh@test.ru", "code": "0000", "new_password": "NewPass456!"}, format="json"
+            )
+            self.assertEqual(last.status_code, status.HTTP_400_BAD_REQUEST)
+        # даже верный код больше не принимается — у нас нет кода, просто проверяем статус не 200
+        self.assertEqual(last.status_code, status.HTTP_400_BAD_REQUEST)

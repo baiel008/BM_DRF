@@ -12,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import *
 from .serializers import *
-from .tokens import check_token, make_token
+from .tokens import check_reset_code, create_reset_code, invalidate_reset_code, mask_email
 
 
 def _tokens_for(user):
@@ -117,7 +117,10 @@ class PasswordChangeAPIView(APIView):
 # ─── Восстановление пароля (забыли пароль; покупатель и продавец) ─────────────
 
 class PasswordResetAPIView(APIView):
-    """Шаг 1: запрос сброса — шлём письмо со ссылкой. Всегда 200 (без раскрытия email)."""
+    """Шаг 1: запрос сброса — генерируем 4-значный код и шлём на почту.
+
+    Всегда 200, код никому не возвращается: в ответе только маска email.
+    """
 
     permission_classes = []
     authentication_classes = []
@@ -134,40 +137,47 @@ class PasswordResetAPIView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "Если email зарегистрирован, письмо отправлено"}, status=status.HTTP_200_OK)
 
-        token = make_token(user)
-        url = f"{settings.PASSWORD_RESET_URL}?email={email}&token={token}"
+        code = create_reset_code(user)
         send_mail(
-            subject="Сброс пароля — Beauty Market",
+            subject="Код сброса пароля — Beauty Market",
             message=(
-                "Здравствуйте!\n\n"
-                "Вы запросили сброс пароля. Перейдите по ссылке, чтобы задать новый пароль "
-                f"(действительна 1 час):\n{url}\n\n"
+                f"Здравствуйте!\n\n"
+                f"Вы запросили сброс пароля. Ваш код для входа:\n\n"
+                f"    {code}\n\n"
+                f"Код действует 10 минут. Никому его не сообщайте.\n\n"
                 "Если вы не запрашивали сброс — проигнорируйте это письмо."
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=True,
         )
-        data = {"detail": "Если email зарегистрирован, письмо отправлено"}
-        if settings.DEBUG:
-            # В разработке почта не уходит наружу — даём прямую ссылку для QA
-            data["dev_reset_url"] = url
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "detail": "Код отправлен на почту",
+                "masked_email": mask_email(user.email),
+                "expires_minutes": 10,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PasswordResetConfirmAPIView(APIView):
-    """Шаг 2: по ссылке из письма — установить новый пароль."""
+    """Шаг 2: email + 4-значный код + новый пароль."""
 
     permission_classes = []
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "reset_confirm"
 
     @swagger_auto_schema(request_body=PasswordResetConfirmSerializer)
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        user = check_token(data["email"], data["token"])
+        user, code_obj = check_reset_code(data["email"], data["code"])
         if not user:
-            return Response({"detail": "Ссылка недействительна или истекла"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Неверный или истёкший код сброса"}, status=status.HTTP_400_BAD_REQUEST)
+        invalidate_reset_code(code_obj)
         user.set_password(data["new_password"])
         user.save()
         return Response({"detail": "Пароль изменён"}, status=status.HTTP_200_OK)

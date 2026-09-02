@@ -65,3 +65,20 @@ class Address(models.Model):
 
     def __str__(self):
         return f"{self.recipient_name or self.user.email}, {self.city}, {self.address}"
+
+
+class PasswordResetCode(models.Model):
+    """4-значный код сброса пароля (OTP), хранится хешем."""
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="password_reset_codes", verbose_name="Пользователь"
+    )
+    code_hash = models.CharField("Хеш кода", max_length=64)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+    expires_at = models.DateTimeField("Действует до")
+    attempts = models.PositiveIntegerField("Попыток ввода", default=0)
+    used = models.BooleanField("Использован", default=False)
+
+    class Meta:
+        verbose_name = "Код сброса пароля"
+        verbose_name_plural = "Коды сброса пароля"
+        ordering = ("-created_at",)

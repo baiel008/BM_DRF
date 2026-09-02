@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import User, Address
+from .models import User, Address, PasswordResetCode
 
 
 @admin.register(User)
@@ -25,3 +25,11 @@ class AddressAdmin(admin.ModelAdmin):
     list_display = ("recipient_name", "city", "address", "phone", "is_default", "user")
     list_filter = ("city", "is_default")
     search_fields = ("recipient_name", "city", "address")
+
+
+@admin.register(PasswordResetCode)
+class PasswordResetCodeAdmin(admin.ModelAdmin):
+    list_display = ("user", "created_at", "expires_at", "attempts", "used")
+    list_filter = ("used",)
+    search_fields = ("user__email",)
+    readonly_fields = ("code_hash",)
