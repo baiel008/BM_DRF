@@ -21,6 +21,7 @@ services:
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput --clear &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    env_file: .env
     environment:
       DJANGO_SECRET_KEY: change-me-in-production
       DEBUG: "True"
@@ -43,6 +44,7 @@ services:
   worker:
     build: .
     command: celery -A config worker -l info
+    env_file: .env
     environment:
       DJANGO_SECRET_KEY: change-me-in-production
       DEBUG: "True"
