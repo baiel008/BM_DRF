@@ -123,7 +123,7 @@ class SearchSuggestAPIView(APIView):
             results.append(
                 {
                     "label": p.name,
-                    "sub": f"{p.price} ₽ · {p.shop.name}",
+                    "sub": f"{p.price} сом · {p.shop.name}",
                     "type": "Товар",
                     "url": f"/api/products/{p.slug}/",
                 }

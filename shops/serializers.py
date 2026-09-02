@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import *
+from catalog.models import ProductImage
 from catalog.serializers import ProductListSerializer, ProductDetailSerializer
 
 
@@ -51,6 +52,20 @@ class ShopCreateUpdateSerializer(serializers.ModelSerializer):
 class SellerProductListSerializer(ProductListSerializer):
     class Meta(ProductListSerializer.Meta):
         fields = ProductListSerializer.Meta.fields + ["sku", "stock", "created_at"]
+
+
+class ProductImageUploadSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductImage
+        fields = ["id", "url", "image", "alt", "is_main"]
+        extra_kwargs = {"image": {"write_only": False}}
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        url = obj.image.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class SellerProductDetailSerializer(ProductDetailSerializer):

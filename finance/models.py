@@ -39,7 +39,7 @@ class Commission(models.Model):
         verbose_name_plural = "Комиссии"
 
     def __str__(self):
-        return f"{self.order.number}: {self.shop.name} — {self.amount} ₽"
+        return f"{self.order.number}: {self.shop.name} — {self.amount} сом"
 
 
 class SellerWallet(models.Model):
@@ -57,7 +57,7 @@ class SellerWallet(models.Model):
         verbose_name_plural = "Кошельки продавцов"
 
     def __str__(self):
-        return f"{self.shop.name}: {self.available} ₽"
+        return f"{self.shop.name}: {self.available} сом"
 
 
 class PayoutStatus(models.TextChoices):
@@ -85,7 +85,7 @@ class Payout(models.Model):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return f"{self.shop.name}: {self.amount} ₽ ({self.status})"
+        return f"{self.shop.name}: {self.amount} сом ({self.status})"
 
 
 class Transaction(models.Model):
@@ -117,4 +117,4 @@ class Transaction(models.Model):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return f"{self.wallet.shop.name}: {self.type} {self.amount} ₽"
+        return f"{self.wallet.shop.name}: {self.type} {self.amount} сом"

@@ -5,6 +5,8 @@ from django.utils import timezone
 from django.utils.text import slugify
 from django.db.models import Avg
 
+import uuid
+
 from unidecode import unidecode
 
 
@@ -135,7 +137,16 @@ class Product(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = unique_slug(Product, self.name, exclude_pk=self.pk, max_length=220)
+        if not self.sku:
+            self.sku = self._generate_sku()
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def _generate_sku():
+        """Уникальный автоматический артикул вида BM-XXXXXXXX (8 hex)."""
+        import secrets
+
+        return f"BM-{secrets.token_hex(4).upper()}"
 
     def get_absolute_url(self):
         return reverse("catalog:product_detail", kwargs={"slug": self.slug})
@@ -233,7 +244,7 @@ class WholesaleTier(models.Model):
         ordering = ("min_qty",)
 
     def __str__(self):
-        return f"{self.product.name}: от {self.min_qty} шт. — {self.price} ₽"
+        return f"{self.product.name}: от {self.min_qty} шт. — {self.price} сом"
 
 
 class Review(models.Model):

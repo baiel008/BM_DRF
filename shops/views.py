@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import *
 from .serializers import *
 from .permissions import IsSeller, IsShopOwner, IsShopOwnerOrReadOnly
-from catalog.models import Brand, BrandStatus, Product
+from catalog.models import Brand, BrandStatus, Product, ProductImage
 from catalog.serializers import (
     ProductCreateSerializer,
     ProductEditSerializer,
@@ -97,6 +97,46 @@ class SellerShopEditAPIView(generics.RetrieveUpdateAPIView):
 
 # ─── Бренды продавца ───────────────────────────────────────────────────────────
 
+class SellerBrandResolveAPIView(APIView):
+    """Находит существующий одобренный бренд по названию или создаёт новый (на модерации).
+
+    Используется в форме товара: продавец вводит название бренда, система подставляет
+    сохранённый, либо заводит новый, который сохранится для следующих товаров.
+    """
+
+    permission_classes = [IsSeller]
+
+    def post(self, request):
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"error": "Укажите название бренда"}, status=status.HTTP_400_BAD_REQUEST)
+
+        brand = Brand.objects.filter(name__iexact=name).first()
+        if brand:
+            return Response(
+                SellerBrandListSerializer(brand, context={"request": request}).data,
+                status=status.HTTP_200_OK,
+            )
+
+        brand = Brand.objects.create(
+            name=name,
+            created_by=request.user,
+            status=BrandStatus.PENDING,
+            is_active=False,
+        )
+        notify(
+            request.user,
+            type="brand.pending",
+            title="Бренд отправлен на модерацию",
+            text=f"Бренд «{brand.name}» создан и отправлен администратору на проверку.",
+            link="/api/seller/brands/",
+        )
+        return Response(
+            SellerBrandListSerializer(brand, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
 class SellerBrandListCreateAPIView(generics.ListCreateAPIView):
     permission_classes = [IsSeller]
 
@@ -153,6 +193,25 @@ class SellerProductRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAP
         if not shop:
             return Product.objects.none()
         return Product.objects.filter(shop=shop)
+
+
+class SellerProductImageAPIView(generics.CreateAPIView):
+    serializer_class = ProductImageUploadSerializer
+    permission_classes = [IsSeller, IsShopOwner]
+
+    def get_queryset(self):
+        shop = _get_own_shop(self.request)
+        if not shop:
+            return Product.objects.none()
+        return Product.objects.filter(shop=shop)
+
+    def get_object(self):
+        product = get_object_or_404(Product, pk=self.kwargs.get("pk"), shop=_get_own_shop(self.request))
+        self.check_object_permissions(self.request, product)
+        return product
+
+    def perform_create(self, serializer):
+        serializer.save(product=self.get_object())
 
 
 # ─── Заказы продавца ───────────────────────────────────────────────────────────

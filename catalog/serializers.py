@@ -126,7 +126,9 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            "id", "name", "slug", "description", "sku", "price", "old_price",
+            "id", "name", "name_ru", "name_ky", "name_en",
+            "description", "description_ru", "description_ky", "description_en",
+            "slug", "sku", "price", "old_price",
             "wholesale_price", "wholesale_min_qty", "stock", "volume", "color",
             "country", "category", "brand", "shop", "rating", "rating_count",
             "has_discount", "discount_percent", "is_new", "is_out_of_stock",
@@ -180,13 +182,25 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
+    name_ru = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    name_ky = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    name_en = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    description_ru = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    description_ky = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    description_en = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Product
         fields = [
             "id", "category", "brand", "name", "description", "sku", "price",
             "old_price", "wholesale_price", "wholesale_min_qty", "stock",
             "volume", "color", "country", "is_active", "is_bestseller",
+            "name_ru", "name_ky", "name_en",
+            "description_ru", "description_ky", "description_en",
         ]
+        extra_kwargs = {
+            "sku": {"read_only": True},
+        }
 
     def validate_price(self, value):
         if value <= 0:
@@ -202,6 +216,46 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         if brand.created_by_id == user.id and brand.status == BrandStatus.PENDING:
             return brand
         raise serializers.ValidationError("Этот бренд не прошёл модерацию и недоступен для товаров")
+
+    def validate(self, attrs):
+        wholesale_price = attrs.get("wholesale_price")
+        wholesale_min_qty = attrs.get("wholesale_min_qty", 0)
+        has_price = wholesale_price is not None
+        has_qty = bool(wholesale_min_qty and wholesale_min_qty > 0)
+        if has_price != has_qty:
+            raise serializers.ValidationError(
+                "Для оптовой продажи укажите и оптовую цену, и минимальное количество, либо оставьте оба поля пустыми"
+            )
+        return attrs
+
+    def _apply_languages(self, attrs):
+        name_ru = attrs.pop("name_ru", None)
+        name_ky = attrs.pop("name_ky", None)
+        name_en = attrs.pop("name_en", None)
+        desc_ru = attrs.pop("description_ru", None)
+        desc_ky = attrs.pop("description_ky", None)
+        desc_en = attrs.pop("description_en", None)
+        if name_ru is not None:
+            attrs["name_ru"] = name_ru
+        if name_ky is not None:
+            attrs["name_ky"] = name_ky
+        if name_en is not None:
+            attrs["name_en"] = name_en
+        if desc_ru is not None:
+            attrs["description_ru"] = desc_ru
+        if desc_ky is not None:
+            attrs["description_ky"] = desc_ky
+        if desc_en is not None:
+            attrs["description_en"] = desc_en
+        return attrs
+
+    def create(self, validated_data):
+        validated_data = self._apply_languages(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data = self._apply_languages(validated_data)
+        return super().update(instance, validated_data)
 
 
 class ProductEditSerializer(ProductCreateSerializer):
