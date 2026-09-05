@@ -1,7 +1,11 @@
 .venv/
+.venv-test/
 __pycache__/
 *.pyc
 media/
 db.sqlite3
 .env
+.env.*
 .git/
+*.egg-info/
+.pytest_cache/
